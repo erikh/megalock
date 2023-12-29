@@ -45,6 +45,13 @@ fn main() -> Result<()> {
         });
     }
 
+    let events = client.lock().unwrap().events();
+    std::thread::spawn(move || {
+        while let Ok(e) = events.lock().unwrap().recv() {
+            debug!("Event: {:?}", e);
+        }
+    });
+
     client.lock().unwrap().select_focused_window()?;
     client
         .lock()

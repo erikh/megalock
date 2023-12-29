@@ -25,9 +25,15 @@ pub enum Event {
     UnlockFailure,
 }
 
+#[derive(Debug, Clone)]
+pub enum PamEvent {
+    Authenticated,
+    AuthenticationFailed,
+}
+
 pub trait Broker {
-    fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>);
-    fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>;
+    fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>);
+    fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>;
     fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>);
     fn pam(&self) -> Option<std::sync::mpsc::Sender<()>>;
     fn set_events(&mut self, events: std::sync::mpsc::Sender<Event>);
@@ -39,7 +45,7 @@ pub trait Broker {
 
 pub trait Client {
     fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>>;
-    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<()>>>;
+    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>;
     fn pam(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<()>>>;
     fn call(&self) -> Option<std::sync::mpsc::Sender<Call>>;
     fn clear_password(&mut self);
@@ -56,15 +62,23 @@ pub trait Client {
             match authenticate_password(name) {
                 Ok(_) => {
                     debug!("PAM authentication successful");
+                    self.pam_return()
+                        .lock()
+                        .unwrap()
+                        .send(PamEvent::Authenticated)
+                        .unwrap();
                     return Ok(());
                 }
                 Err(e) => {
                     debug!("PAM authentication failed: {}", e);
+                    self.pam_return()
+                        .lock()
+                        .unwrap()
+                        .send(PamEvent::AuthenticationFailed)
+                        .unwrap();
                     self.clear_password();
                 }
             }
-
-            self.pam_return().lock().unwrap().send(()).unwrap();
         }
 
         Ok(())

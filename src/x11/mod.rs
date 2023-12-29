@@ -4,7 +4,7 @@ pub mod statics;
 
 use crate::{
     clear_password,
-    wm::{statics::PASSWORD, Broker, Call, Event},
+    wm::{statics::PASSWORD, Broker, Call, Event, PamEvent},
 };
 use anyhow::Result;
 use std::{
@@ -20,7 +20,7 @@ pub struct Client {
     screen_number: i32,
     sender: Arc<Mutex<Option<std::sync::mpsc::Sender<Call>>>>,
     pam: Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
-    pam_return: Arc<Mutex<std::sync::mpsc::Sender<()>>>,
+    pam_return: Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>,
     events: Arc<Mutex<std::sync::mpsc::Receiver<Event>>>,
 }
 
@@ -57,7 +57,7 @@ impl Client {
         &mut self,
         receiver: std::sync::mpsc::Receiver<Call>,
         pam: std::sync::mpsc::Sender<()>,
-        pam_return: std::sync::mpsc::Receiver<()>,
+        pam_return: std::sync::mpsc::Receiver<PamEvent>,
         events: std::sync::mpsc::Sender<Event>,
     ) {
         let screen_number = self.screen_number;
@@ -78,7 +78,7 @@ impl crate::wm::Client for Client {
         self.events.clone()
     }
 
-    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<()>>> {
+    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>> {
         self.pam_return.clone()
     }
 

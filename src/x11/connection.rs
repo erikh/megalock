@@ -68,7 +68,7 @@ use crate::{
     utils::get_locale,
     wm::{
         statics::{AUTH_STATE, PASSWORD, UNLOCK_STATE},
-        Broker, Call, Event,
+        Broker, Call, Event, PamEvent,
     },
     x11::{consts, statics},
 };
@@ -109,7 +109,7 @@ pub struct Connection {
     pub(crate) my_window: Option<xcb_window_t>,
     pub(crate) receiver: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>,
     pub(crate) pam: Option<std::sync::mpsc::Sender<()>>,
-    pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>,
+    pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
     pub(crate) events: Option<std::sync::mpsc::Sender<Event>>,
 }
 
@@ -1134,6 +1134,7 @@ impl Connection {
         }
 
         trace!("Key pressed: {}", ksym);
+        self.events().unwrap().send(Event::KeyPressed).unwrap();
 
         match ksym {
             XKB_KEY_Return | XKB_KEY_KP_Enter | XKB_KEY_XF86ScreenSaver => {
@@ -1148,6 +1149,7 @@ impl Connection {
 
                 replace_option!(UNLOCK_STATE, UnlockState::Started);
 
+                self.events().unwrap().send(Event::UnlockAttempted).unwrap();
                 self.pam()
                     .unwrap()
                     .send(())
@@ -1155,7 +1157,16 @@ impl Connection {
                 let pam_return = self.pam_return();
                 let mut lock = pam_return.lock().unwrap();
                 let ch = lock.take().unwrap();
-                ch.recv().unwrap();
+                match ch.recv().unwrap() {
+                    PamEvent::Authenticated => self
+                        .events()
+                        .unwrap()
+                        .send(Event::UnlockSuccessful)
+                        .unwrap(),
+                    PamEvent::AuthenticationFailed => {
+                        self.events().unwrap().send(Event::UnlockFailure).unwrap()
+                    }
+                }
                 lock.replace(ch);
 
                 self.redraw_screen().expect("Could not redraw screen");
@@ -1261,11 +1272,14 @@ impl Broker for Connection {
         self.events.clone()
     }
 
-    fn set_pam_return(&mut self, pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>) {
+    fn set_pam_return(
+        &mut self,
+        pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
+    ) {
         self.pam_return = pam_return
     }
 
-    fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>> {
+    fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>> {
         self.pam_return.clone()
     }
 
