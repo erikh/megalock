@@ -21,7 +21,15 @@ Events are all synthetic, which are then translated to X11 calls in a dedicated 
 
 Optimized binary size is about 730k, which was a nice discovery. We'll see if that sticks.
 
-## PAM configuration
+## Installation
+
+```
+cargo install megalock
+```
+
+Debian and RedHat packages will come soon!
+
+### PAM configuration
 
 If you use `megalock`, be sure to put [contrib/megalock](contrib/megalock) in `/etc/pam.d` so that megalock can use the PAM subsystem effectively. `megalock` may not work on OpenBSD.
 
