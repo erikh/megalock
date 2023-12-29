@@ -110,7 +110,7 @@ pub struct Connection {
     pub(crate) receiver: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>,
     pub(crate) pam: Option<std::sync::mpsc::Sender<()>>,
     pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
-    pub(crate) events: Option<std::sync::mpsc::Sender<Event>>,
+    pub(crate) events: Option<std::sync::mpsc::SyncSender<Event>>,
 }
 
 impl Default for Connection {
@@ -1264,11 +1264,11 @@ impl crate::screen::Screen for Connection {
 }
 
 impl Broker for Connection {
-    fn set_events(&mut self, events: std::sync::mpsc::Sender<crate::wm::Event>) {
+    fn set_events(&mut self, events: std::sync::mpsc::SyncSender<crate::wm::Event>) {
         self.events = Some(events);
     }
 
-    fn events(&self) -> Option<std::sync::mpsc::Sender<crate::wm::Event>> {
+    fn events(&self) -> Option<std::sync::mpsc::SyncSender<crate::wm::Event>> {
         self.events.clone()
     }
 

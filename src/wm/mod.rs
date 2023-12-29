@@ -2,7 +2,7 @@ mod pam;
 pub mod statics;
 
 use crate::{utils::get_username, wm::pam::authenticate_password};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 use tracing::debug;
 
@@ -36,8 +36,8 @@ pub trait Broker {
     fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>;
     fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>);
     fn pam(&self) -> Option<std::sync::mpsc::Sender<()>>;
-    fn set_events(&mut self, events: std::sync::mpsc::Sender<Event>);
-    fn events(&self) -> Option<std::sync::mpsc::Sender<Event>>;
+    fn set_events(&mut self, events: std::sync::mpsc::SyncSender<Event>);
+    fn events(&self) -> Option<std::sync::mpsc::SyncSender<Event>>;
     fn set_receiver(&mut self, call: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>);
     fn receiver(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>;
     fn listen(&mut self) -> Result<()>;
@@ -52,7 +52,12 @@ pub trait Client {
     fn password(&self) -> String;
 
     fn loop_until_pam(&mut self, name: &str) -> Result<()> {
-        while let Ok(_) = self.pam().lock().unwrap().recv() {
+        if let Ok(_) = self
+            .pam()
+            .lock()
+            .unwrap()
+            .recv_timeout(std::time::Duration::new(0, 50))
+        {
             debug!(
                 "PAM authentication attempt: username: '{}', password: '{}'",
                 get_username()?,
@@ -77,11 +82,12 @@ pub trait Client {
                         .send(PamEvent::AuthenticationFailed)
                         .unwrap();
                     self.clear_password();
+                    return Err(anyhow!("invalid password"));
                 }
             }
         }
 
-        Ok(())
+        Err(anyhow!("No reception"))
     }
 
     fn select_focused_window(&self) -> Result<()> {

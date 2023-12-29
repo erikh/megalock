@@ -45,23 +45,31 @@ fn main() -> Result<()> {
         });
     }
 
-    let events = client.lock().unwrap().events();
-    std::thread::spawn(move || {
-        while let Ok(e) = events.lock().unwrap().recv() {
+    let c = client.clone();
+    std::thread::spawn(move || loop {
+        let lock = c.lock().unwrap();
+        if let Ok(e) = lock
+            .events()
+            .lock()
+            .unwrap()
+            .recv_timeout(std::time::Duration::new(0, 50))
+        {
             debug!("Event: {:?}", e);
         }
     });
 
-    client.lock().unwrap().select_focused_window()?;
-    client
-        .lock()
-        .unwrap()
-        .open_fullscreen_window(PROGRAM_NAME.to_string())?;
-    client.lock().unwrap().grab_pointer_and_keyboard()?;
-    client.lock().unwrap().unlock_sleep()?;
-    client.lock().unwrap().redraw_screen()?;
-    client.lock().unwrap().raise_window()?;
-    client.lock().unwrap().loop_until_pam(PROGRAM_NAME)?;
+    let lock = client.lock().unwrap();
+    lock.select_focused_window()?;
+    lock.open_fullscreen_window(PROGRAM_NAME.to_string())?;
+    lock.grab_pointer_and_keyboard()?;
+    lock.unlock_sleep()?;
+    lock.redraw_screen()?;
+    lock.raise_window()?;
+    drop(lock);
 
-    Ok(())
+    loop {
+        if client.lock().unwrap().loop_until_pam(PROGRAM_NAME).is_ok() {
+            return Ok(());
+        }
+    }
 }

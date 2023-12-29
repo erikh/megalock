@@ -29,7 +29,7 @@ impl Client {
         let (sender, receiver) = std::sync::mpsc::channel();
         let (pam_s, pam_r) = std::sync::mpsc::channel();
         let (pam_return_s, pam_return_r) = std::sync::mpsc::channel();
-        let (events_s, events_r) = std::sync::mpsc::channel();
+        let (events_s, events_r) = std::sync::mpsc::sync_channel(100);
         let mut s = Self {
             screen_number,
             sender: Arc::new(Mutex::new(Some(sender))),
@@ -58,7 +58,7 @@ impl Client {
         receiver: std::sync::mpsc::Receiver<Call>,
         pam: std::sync::mpsc::Sender<()>,
         pam_return: std::sync::mpsc::Receiver<PamEvent>,
-        events: std::sync::mpsc::Sender<Event>,
+        events: std::sync::mpsc::SyncSender<Event>,
     ) {
         let screen_number = self.screen_number;
         std::thread::spawn(move || {
