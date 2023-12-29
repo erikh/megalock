@@ -4,7 +4,7 @@ pub mod statics;
 
 use crate::{
     clear_password,
-    wm::{statics::PASSWORD, Broker, Call},
+    wm::{statics::PASSWORD, Broker, Call, Event},
 };
 use anyhow::Result;
 use std::{
@@ -21,6 +21,7 @@ pub struct Client {
     sender: Arc<Mutex<Option<std::sync::mpsc::Sender<Call>>>>,
     pam: Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
     pam_return: Arc<Mutex<std::sync::mpsc::Sender<()>>>,
+    events: Arc<Mutex<std::sync::mpsc::Receiver<Event>>>,
 }
 
 impl Client {
@@ -28,13 +29,15 @@ impl Client {
         let (sender, receiver) = std::sync::mpsc::channel();
         let (pam_s, pam_r) = std::sync::mpsc::channel();
         let (pam_return_s, pam_return_r) = std::sync::mpsc::channel();
+        let (events_s, events_r) = std::sync::mpsc::channel();
         let mut s = Self {
             screen_number,
             sender: Arc::new(Mutex::new(Some(sender))),
             pam: Arc::new(Mutex::new(pam_r)),
             pam_return: Arc::new(Mutex::new(pam_return_s)),
+            events: Arc::new(Mutex::new(events_r)),
         };
-        s.spawn(receiver, pam_s, pam_return_r);
+        s.spawn(receiver, pam_s, pam_return_r, events_s);
         Ok(Arc::new(Mutex::new(s)))
     }
 
@@ -55,6 +58,7 @@ impl Client {
         receiver: std::sync::mpsc::Receiver<Call>,
         pam: std::sync::mpsc::Sender<()>,
         pam_return: std::sync::mpsc::Receiver<()>,
+        events: std::sync::mpsc::Sender<Event>,
     ) {
         let screen_number = self.screen_number;
         std::thread::spawn(move || {
@@ -63,12 +67,17 @@ impl Client {
             connection.set_receiver(Arc::new(Mutex::new(Some(receiver))));
             connection.set_pam(pam);
             connection.set_pam_return(Arc::new(Mutex::new(Some(pam_return))));
+            connection.set_events(events);
             connection.listen().expect("Could not listen to events");
         });
     }
 }
 
 impl crate::wm::Client for Client {
+    fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>> {
+        self.events.clone()
+    }
+
     fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<()>>> {
         self.pam_return.clone()
     }

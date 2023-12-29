@@ -17,17 +17,28 @@ pub enum Call {
     FlushCommands,
 }
 
+#[derive(Debug, Clone)]
+pub enum Event {
+    KeyPressed,
+    UnlockAttempted,
+    UnlockSuccessful,
+    UnlockFailure,
+}
+
 pub trait Broker {
     fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>);
     fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>;
     fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>);
     fn pam(&self) -> Option<std::sync::mpsc::Sender<()>>;
+    fn set_events(&mut self, events: std::sync::mpsc::Sender<Event>);
+    fn events(&self) -> Option<std::sync::mpsc::Sender<Event>>;
     fn set_receiver(&mut self, call: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>);
     fn receiver(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>;
     fn listen(&mut self) -> Result<()>;
 }
 
 pub trait Client {
+    fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>>;
     fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<()>>>;
     fn pam(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<()>>>;
     fn call(&self) -> Option<std::sync::mpsc::Sender<Call>>;

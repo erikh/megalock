@@ -68,7 +68,7 @@ use crate::{
     utils::get_locale,
     wm::{
         statics::{AUTH_STATE, PASSWORD, UNLOCK_STATE},
-        Broker, Call,
+        Broker, Call, Event,
     },
     x11::{consts, statics},
 };
@@ -110,6 +110,7 @@ pub struct Connection {
     pub(crate) receiver: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>,
     pub(crate) pam: Option<std::sync::mpsc::Sender<()>>,
     pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>,
+    pub(crate) events: Option<std::sync::mpsc::Sender<Event>>,
 }
 
 impl Default for Connection {
@@ -135,6 +136,7 @@ impl Default for Connection {
             my_window: None,
             pam: None,
             pam_return: Arc::new(Mutex::new(None)),
+            events: None,
             receiver: Arc::new(Mutex::new(None)),
         }
     }
@@ -1251,6 +1253,14 @@ impl crate::screen::Screen for Connection {
 }
 
 impl Broker for Connection {
+    fn set_events(&mut self, events: std::sync::mpsc::Sender<crate::wm::Event>) {
+        self.events = Some(events);
+    }
+
+    fn events(&self) -> Option<std::sync::mpsc::Sender<crate::wm::Event>> {
+        self.events.clone()
+    }
+
     fn set_pam_return(&mut self, pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<()>>>>) {
         self.pam_return = pam_return
     }
