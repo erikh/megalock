@@ -1,0 +1,30 @@
+[package]
+name = "megalock"
+version = "0.1.0"
+edition = "2021"
+description = "X11 xlock replacement"
+authors = ["Erik Hollensbe <erik+github@hollensbe.org>"]
+license = "MIT"
+homepage = "https://github.com/erikh/megalock"
+repository = "https://github.com/erikh/megalock"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "^1"
+libc = "^0.2"
+tracing = "^0.1"
+tracing-subscriber = "^0.3"
+lazy_static = "^1.4"
+
+[build-dependencies]
+bindgen = "^0.69"
+
+[[bin]]
+name = "megalock"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 48
+opt-level = 3

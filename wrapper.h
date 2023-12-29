@@ -1,0 +1,14 @@
+#include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-compose.h>
+#include <xkbcommon/xkbcommon-x11.h>
+#include <xcb/xcb.h>
+#include <xcb/xkb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xcb_image.h>
+#include <xcb/xcb_atom.h>
+#include <xcb/xcb_xrm.h>
+#include <xcb/randr.h>
+#include <xcb/xinerama.h>
+#include <cairo/cairo.h>
+#include <cairo/cairo-xcb.h>
+#include <security/pam_appl.h>
