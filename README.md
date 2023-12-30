@@ -10,7 +10,7 @@ This currently is a substrate for a minimal xlock replacement in Rust. It is onl
     - On success, the program exits
     - On failure, the program clears the password field and continues
 - Additionally, the following environment variables are respected:
-    - `TRACE=1`: Enable Trace (lowest) level debugging
+    - `TRACE=1`: Enable Trace (lowest) level debugging; includes passwords in plain text
     - `DEBUG=1`: Enable Debug level logging -- most status changes, but no raw data
     - `EXIT_TRAP=n`: Forcefully terminate the program after `n` seconds
 
