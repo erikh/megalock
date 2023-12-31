@@ -16,6 +16,7 @@ libc = "^0.2"
 tracing = "^0.1"
 tracing-subscriber = "^0.3"
 lazy_static = "^1.4"
+raqote = "^0.8"
 
 [build-dependencies]
 bindgen = "^0.69"
