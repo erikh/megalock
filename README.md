@@ -5,10 +5,10 @@ This currently is a substrate for a minimal xlock replacement in Rust. It is onl
 - Blanks the entire screen regardless of monitor configuration
 - Grabs the keyboard and pointing devices
 - Buffers all input into a password
-- Performs all password checking through PAM
 - Upon pressing enter, verifies that password
     - On success, the program exits
     - On failure, the program clears the password field and continues
+- Performs all password checking through PAM
 - Additionally, the following environment variables are respected:
     - `TRACE=1`: Enable Trace (lowest) level debugging; includes passwords in plain text
     - `DEBUG=1`: Enable Debug level logging -- most status changes, but no raw data
