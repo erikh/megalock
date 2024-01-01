@@ -4,7 +4,8 @@ This currently is a substrate for a minimal xlock replacement in Rust. It is onl
 
 - Blanks the entire screen regardless of monitor configuration
 - Grabs the keyboard and pointing devices
-- Buffers all input into a password
+- Buffers all input into a password 
+    - Backspace removes the previously entered characters, walking back to the beginning of the buffer
 - Upon pressing enter, verifies that password
     - On success, the program exits
     - On failure, the program clears the password field and continues
