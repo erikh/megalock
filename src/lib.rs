@@ -1,3 +1,4 @@
+pub mod animation;
 pub mod bindings;
 pub mod macros;
 pub mod screen;

@@ -15,11 +15,7 @@ where
     width: i32,
     height: i32,
     background: (u8, u8, u8, u8),
-    strokes: Vec<(
-        Box<dyn Fn(f32, f32) -> Path>,
-        &'a Source<'a>,
-        &'a StrokeStyle,
-    )>,
+    strokes: Vec<(Box<dyn Fn(f32, f32) -> Path>, Source<'a>, StrokeStyle)>,
     images: HashMap<H, Vec<u32>>,
 }
 
@@ -42,7 +38,7 @@ impl<'a, H> ScreenDrawer<'a, H>
 where
     H: Hash + Eq + Clone,
 {
-    fn new(width: i32, height: i32) -> Self {
+    pub(crate) fn new(width: i32, height: i32) -> Self {
         Self {
             width,
             height,
@@ -50,25 +46,25 @@ where
         }
     }
 
-    fn background(&mut self, r: u8, g: u8, b: u8, a: u8) {
+    pub(crate) fn background(&mut self, r: u8, g: u8, b: u8, a: u8) {
         self.background = (r, g, b, a)
     }
 
-    fn add_stroke(
+    pub(crate) fn add_stroke(
         &mut self,
         path: impl Fn(f32, f32) -> Path + 'static,
-        source: &'a Source<'a>,
-        style: &'a StrokeStyle,
+        source: Source<'a>,
+        style: StrokeStyle,
     ) -> usize {
         self.strokes.push((Box::new(path), source, style));
         self.strokes.len() - 1
     }
 
-    fn get_image(&self, tag: H) -> Option<Vec<u32>> {
+    pub(crate) fn get_image(&self, tag: H) -> Option<Vec<u32>> {
         self.images.get(&tag).cloned()
     }
 
-    fn render_image(&mut self, strokes: Vec<usize>, tag: Option<H>) -> DrawTarget {
+    pub(crate) fn render_image(&mut self, strokes: Vec<usize>, tag: Option<H>) -> DrawTarget {
         let mut dt = DrawTarget::new(self.width, self.height);
         dt.fill_rect(
             0.0,
@@ -101,7 +97,7 @@ where
         dt
     }
 
-    fn get_or_render_image(&mut self, strokes: Vec<usize>, tag: H) -> Vec<u32> {
+    pub(crate) fn get_or_render_image(&mut self, strokes: Vec<usize>, tag: H) -> Vec<u32> {
         if let Some(image) = self.get_image(tag.clone()) {
             image
         } else {
