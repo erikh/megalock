@@ -41,13 +41,6 @@ macro_rules! store_atomic {
 }
 
 #[macro_export]
-macro_rules! replace_option {
-    ($s:expr, $v:expr) => {
-        $s.lock().unwrap().replace($v)
-    };
-}
-
-#[macro_export]
 macro_rules! clear_password {
     () => {
         crate::wm::statics::PASSWORD.lock().unwrap().truncate(0)

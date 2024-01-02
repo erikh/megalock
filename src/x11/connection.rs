@@ -62,14 +62,10 @@ use crate::{
         XCB_RANDR_SCREEN_CHANGE_NOTIFY, XCB_UNMAP_NOTIFY, XCB_VISIBILITY_NOTIFY, XKB_MOD_NAME_CAPS,
         XKB_MOD_NAME_NUM, XKB_X11_MIN_MAJOR_XKB_VERSION, XKB_X11_MIN_MINOR_XKB_VERSION,
     },
-    clear_password, const_string_ptr, free, load_atomic, replace_option, store_atomic,
-    string_from_ptr,
-    types::{Modifier, Rect, ScreenQuery, UnlockState},
+    clear_password, const_string_ptr, free, load_atomic, store_atomic, string_from_ptr,
+    types::{Modifier, Rect, ScreenQuery},
     utils::get_locale,
-    wm::{
-        statics::{AUTH_STATE, PASSWORD, UNLOCK_STATE},
-        Broker, Call, Event, PamEvent,
-    },
+    wm::{statics::PASSWORD, Broker, Call, Event, PamEvent},
     x11::{consts, statics},
 };
 use anyhow::{anyhow, Result};
@@ -858,11 +854,7 @@ impl Connection {
     }
 
     pub fn redraw_screen(&mut self) -> Result<()> {
-        trace!(
-            "redraw_screen(unlock_state = {:?}, auth_state = {:?})",
-            UNLOCK_STATE.lock().unwrap().clone().unwrap(),
-            AUTH_STATE.lock().unwrap().clone().unwrap(),
-        );
+        trace!("redraw_screen");
 
         if self.modifier_set.is_some() {
             self.modifier_set = None;
@@ -1143,13 +1135,8 @@ impl Connection {
                     return;
                 }
 
-                replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
-
-                self.redraw_screen().expect("Could not redraw screen");
-
-                replace_option!(UNLOCK_STATE, UnlockState::Started);
-
                 self.events().unwrap().send(Event::UnlockAttempted).unwrap();
+                self.redraw_screen().expect("Could not redraw screen");
                 self.pam()
                     .unwrap()
                     .send(())
@@ -1189,17 +1176,8 @@ impl Connection {
             }
             XKB_KEY_BackSpace => {
                 let mut lock = PASSWORD.lock().unwrap();
-                if lock.is_empty() {
-                    replace_option!(UNLOCK_STATE, UnlockState::NothingToDelete);
-                }
-
                 // FIXME: start login timer
                 lock.pop();
-
-                replace_option!(UNLOCK_STATE, UnlockState::BackspaceActive);
-
-                self.redraw_screen().expect("Could not redraw screen");
-                replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
                 composed = false; // lets it fall through to the trace statement
             }
             _ => {}
@@ -1211,14 +1189,9 @@ impl Connection {
                     .unwrap()
                     .as_str(),
             );
-
-            replace_option!(UNLOCK_STATE, UnlockState::KeyActive);
-            self.redraw_screen().expect("Couldn't redraw screen");
-            replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
         }
 
         trace!("PASSWORD is now '{}'", PASSWORD.lock().unwrap());
-
         // FIXME: start password clear timer
     }
 

@@ -12,25 +12,6 @@ pub struct Rect {
     pub height: u16,
 }
 
-#[derive(Debug, Clone)]
-pub enum UnlockState {
-    None,
-    Started,
-    KeyPressed,
-    KeyActive,
-    BackspaceActive,
-    NothingToDelete,
-}
-
-#[derive(Debug, Clone)]
-pub enum AuthState {
-    Idle,
-    Verify,
-    Lock,
-    Wrong,
-    Failed,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Modifier {
     CapsLock,
