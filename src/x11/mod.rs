@@ -3,7 +3,7 @@ pub mod consts;
 pub mod statics;
 
 use crate::{
-    animation::AnimationTypes,
+    animation::AnimationDriver,
     clear_password,
     wm::{Broker, Call, Event, PamEvent, PASSWORD},
 };
@@ -19,18 +19,18 @@ lazy_static::lazy_static! {
 
 pub struct Client {
     screen_number: i32,
-    animator: Arc<Mutex<Option<AnimationTypes>>>,
-    sender: Arc<Mutex<Option<std::sync::mpsc::Sender<Call>>>>,
+    animator: Arc<Mutex<Option<AnimationDriver>>>,
+    sender: Arc<Mutex<Option<std::sync::mpsc::SyncSender<Call>>>>,
     pam: Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
-    pam_return: Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>,
+    pam_return: Arc<Mutex<std::sync::mpsc::SyncSender<PamEvent>>>,
     events: Arc<Mutex<std::sync::mpsc::Receiver<Event>>>,
 }
 
 impl Client {
     fn new(screen_number: i32) -> Result<Arc<Mutex<Self>>> {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let (pam_s, pam_r) = std::sync::mpsc::channel();
-        let (pam_return_s, pam_return_r) = std::sync::mpsc::channel();
+        let (sender, receiver) = std::sync::mpsc::sync_channel(100);
+        let (pam_s, pam_r) = std::sync::mpsc::sync_channel(100);
+        let (pam_return_s, pam_return_r) = std::sync::mpsc::sync_channel(100);
         let (events_s, events_r) = std::sync::mpsc::sync_channel(100);
         let mut s = Self {
             screen_number,
@@ -59,7 +59,7 @@ impl Client {
     fn spawn(
         &mut self,
         receiver: std::sync::mpsc::Receiver<Call>,
-        pam: std::sync::mpsc::Sender<()>,
+        pam: std::sync::mpsc::SyncSender<()>,
         pam_return: std::sync::mpsc::Receiver<PamEvent>,
         events: std::sync::mpsc::SyncSender<Event>,
     ) {
@@ -78,7 +78,7 @@ impl Client {
 }
 
 impl crate::wm::Client for Client {
-    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>> {
+    fn animator(&self) -> Arc<Mutex<Option<AnimationDriver>>> {
         self.animator.clone()
     }
 
@@ -86,7 +86,7 @@ impl crate::wm::Client for Client {
         self.events.clone()
     }
 
-    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>> {
+    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::SyncSender<PamEvent>>> {
         self.pam_return.clone()
     }
 
@@ -102,7 +102,7 @@ impl crate::wm::Client for Client {
         PASSWORD.lock().unwrap().to_string()
     }
 
-    fn call(&self) -> Option<std::sync::mpsc::Sender<Call>> {
+    fn call(&self) -> Option<std::sync::mpsc::SyncSender<Call>> {
         if let Some(sender) = self.sender.lock().unwrap().clone() {
             Some(sender)
         } else {

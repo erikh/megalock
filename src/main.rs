@@ -3,7 +3,7 @@ use megalock::{
     utils::{get_display, get_username},
     wm::Client,
 };
-use tracing::debug;
+use tracing::{debug, trace};
 
 const PROGRAM_NAME: &str = "megalock";
 
@@ -55,6 +55,17 @@ fn main() -> Result<()> {
             .recv_timeout(std::time::Duration::new(0, 50))
         {
             debug!("Event: {:?}", e);
+            trace!("Event processing lock");
+            let animator = lock.animator();
+            let mut animator_lock = animator.lock().unwrap();
+            trace!("got Event processing lock");
+            let mut inner = animator_lock.take().unwrap();
+            trace!("animating");
+            inner.animate(e);
+            trace!("animated");
+            animator_lock.replace(inner);
+            drop(animator_lock);
+            trace!("Event processing unlock");
         }
     });
 

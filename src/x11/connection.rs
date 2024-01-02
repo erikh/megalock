@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 use crate::{
-    animation::{Animation, AnimationTypes},
+    animation::{AnimationDriver, AnimationType},
     bindings::{
         cairo_create, cairo_destroy, cairo_fill, cairo_rectangle, cairo_set_source_rgb,
         cairo_surface_destroy, cairo_surface_t, cairo_t, cairo_xcb_surface_create,
@@ -105,10 +105,10 @@ pub struct Connection {
     pub(crate) focused_window: Option<xcb_window_t>,
     pub(crate) my_window: Option<xcb_window_t>,
     pub(crate) receiver: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>,
-    pub(crate) pam: Option<std::sync::mpsc::Sender<()>>,
+    pub(crate) pam: Option<std::sync::mpsc::SyncSender<()>>,
     pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
     pub(crate) events: Option<std::sync::mpsc::SyncSender<Event>>,
-    pub(crate) animator: Arc<Mutex<Option<AnimationTypes>>>,
+    pub(crate) animator: Arc<Mutex<Option<AnimationDriver>>>,
 }
 
 impl Default for Connection {
@@ -142,8 +142,8 @@ impl Default for Connection {
 }
 
 impl Connection {
-    pub fn init(screen_number: i32, animator: Arc<Mutex<Option<AnimationTypes>>>) -> Result<Self> {
-        let mut obj = Self::connect(screen_number)?;
+    pub fn init(screen_number: i32, animator: Arc<Mutex<Option<AnimationDriver>>>) -> Result<Self> {
+        let mut obj = Self::connect(screen_number, animator)?;
         obj.clear_xkb_extension()?;
         obj.select_xkb_events()?;
         obj.load_keymap()?;
@@ -163,25 +163,29 @@ impl Connection {
         let width = unsafe { (*screen).width_in_pixels }.into();
         let height = unsafe { (*screen).height_in_pixels }.into();
 
-        obj.animator = animator;
-        obj.animator
-            .lock()
-            .unwrap()
-            .replace(AnimationTypes::StarAnimation {
-                width,
-                height,
-                scale: 100,
-                line_width: ((width as f32 / height as f32) * 20.0).trunc() as i32,
-            });
+        debug!("Screen: width: {}, height: {}", width, height);
+
+        let mut lock = obj.animator.lock().unwrap();
+        lock.replace(AnimationDriver::new(AnimationType::StarAnimation {
+            width,
+            height,
+            scale: 100,
+            line_width: ((width as f32 / height as f32) * 20.0).trunc() as i32,
+        }));
+        drop(lock);
 
         Ok(obj)
     }
 
-    fn connect(mut screen_number: i32) -> Result<Self> {
+    fn connect(
+        mut screen_number: i32,
+        animator: Arc<Mutex<Option<AnimationDriver>>>,
+    ) -> Result<Self> {
         let conn = unsafe { xcb_connect(std::ptr::null(), &mut screen_number) };
         if !conn.is_null() {
             Ok(Connection {
                 xcb: conn,
+                animator,
                 ..Default::default()
             })
         } else {
@@ -447,7 +451,7 @@ impl Connection {
         unsafe { xcb_change_window_attributes(self.xcb, win, cw, controls.as_ptr().cast()) };
     }
 
-    pub fn create_bg_pixmap(&mut self, resolution: Rect, event: Event) -> xcb_pixmap_t {
+    pub fn create_bg_pixmap(&mut self, resolution: Rect) -> xcb_pixmap_t {
         let bg_pixmap: xcb_pixmap_t = unsafe { xcb_generate_id(self.xcb) };
         let screen = self.get_root_screen();
         unsafe {
@@ -463,9 +467,15 @@ impl Connection {
 
         let gc: xcb_gcontext_t = unsafe { xcb_generate_id(self.xcb) };
         let animator = self.animator();
-        let lock = animator.lock().unwrap();
-        let mut animator: Box<dyn Animation> = lock.as_ref().unwrap().into();
-        let values = animator.animate(event);
+        trace!("bg pixmap lock");
+        let mut lock = animator.lock().unwrap();
+        trace!("got bg pixmap lock");
+        let inner = lock.take().unwrap();
+        let values = inner.last_frame();
+        lock.replace(inner.clone());
+        drop(lock);
+        trace!("bg pixmap unlock");
+
         unsafe {
             xcb_create_gc(
                 self.xcb,
@@ -819,7 +829,7 @@ impl Connection {
             std::thread::sleep(consts::GRAB_RETRY_DURATION);
 
             if now - redrawn > consts::GRAB_REDRAW_TIMEOUT {
-                self.redraw_screen(Event::Idle)?;
+                self.redraw_screen()?;
                 redrawn = now;
             }
 
@@ -861,7 +871,7 @@ impl Connection {
             std::thread::sleep(consts::GRAB_RETRY_DURATION);
 
             if now - redrawn > consts::GRAB_REDRAW_TIMEOUT {
-                self.redraw_screen(Event::Idle)?;
+                self.redraw_screen()?;
                 redrawn = now;
             }
 
@@ -875,7 +885,7 @@ impl Connection {
         Ok((pcookie.unwrap(), kcookie.unwrap()))
     }
 
-    pub fn redraw_screen(&mut self, event: Event) -> Result<()> {
+    pub fn redraw_screen(&mut self) -> Result<()> {
         trace!(
             "redraw_screen(unlock_state = {:?}, auth_state = {:?})",
             UNLOCK_STATE.lock().unwrap().clone().unwrap(),
@@ -983,7 +993,7 @@ impl Connection {
             y: 0,
         };
 
-        let bg_pixmap = self.create_bg_pixmap(rect.clone(), event);
+        let bg_pixmap = self.create_bg_pixmap(rect.clone());
 
         self.draw_image(bg_pixmap, rect.clone())?;
         self.change_window_attributes(
@@ -1087,6 +1097,7 @@ impl Connection {
                     let event: *mut xcb_destroy_notify_event_t = event.cast();
                     let event_window = unsafe { (*event).window };
                     debug!("destroy notify for {}", event_window);
+
                     if event_window == self.my_window.unwrap() {
                         std::process::exit(0);
                     }
@@ -1095,13 +1106,8 @@ impl Connection {
                     self.handle_screen_resize().expect("Couldn't resize screen")
                 }
                 _ => {
-                    if response_type == self.xkb_base_event.into() {
-                        // FIXME: process_xkb_event
-                        self.redraw_screen(Event::KeyPressed)
-                            .expect("Couldn't redraw screen");
-                    }
-
                     if response_type == self.randr_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY as u8 {
+                        debug!("Screen changed size");
                         self.randr_query().expect("Couldn't query randr");
                         self.handle_screen_resize().expect("Couldn't resize screen");
                     }
@@ -1152,9 +1158,6 @@ impl Connection {
             composed = true;
         }
 
-        trace!("Key pressed: {}", ksym);
-        self.events().unwrap().send(Event::KeyPressed).unwrap();
-
         match ksym {
             XKB_KEY_Return | XKB_KEY_KP_Enter | XKB_KEY_XF86ScreenSaver => {
                 if skip_without_validation() {
@@ -1164,8 +1167,7 @@ impl Connection {
 
                 replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
 
-                self.redraw_screen(Event::UnlockAttempted)
-                    .expect("Could not redraw screen");
+                self.redraw_screen().expect("Could not redraw screen");
 
                 replace_option!(UNLOCK_STATE, UnlockState::Started);
 
@@ -1185,17 +1187,14 @@ impl Connection {
                             .unwrap()
                             .send(Event::UnlockSuccessful)
                             .unwrap();
-                        self.redraw_screen(Event::UnlockSuccessful)
-                            .expect("Could not redraw screen");
                     }
                     PamEvent::AuthenticationFailed => {
                         self.events().unwrap().send(Event::UnlockFailure).unwrap();
-                        self.redraw_screen(Event::UnlockFailure)
-                            .expect("Could not redraw screen");
                     }
                 }
                 lock.replace(ch);
 
+                self.redraw_screen().expect("Could not redraw screen");
                 return;
             }
             _ => {
@@ -1220,8 +1219,7 @@ impl Connection {
 
                 replace_option!(UNLOCK_STATE, UnlockState::BackspaceActive);
 
-                self.redraw_screen(Event::KeyPressed)
-                    .expect("Could not redraw screen");
+                self.redraw_screen().expect("Could not redraw screen");
                 replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
                 composed = false; // lets it fall through to the trace statement
             }
@@ -1236,10 +1234,12 @@ impl Connection {
             );
 
             replace_option!(UNLOCK_STATE, UnlockState::KeyActive);
-            self.redraw_screen(Event::KeyPressed)
-                .expect("Couldn't redraw screen");
+            self.redraw_screen().expect("Couldn't redraw screen");
             replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
         }
+
+        trace!("Key pressed: {}", ksym);
+        self.events().unwrap().send(Event::KeyPressed).unwrap();
 
         trace!("PASSWORD is now '{}'", PASSWORD.lock().unwrap());
         // FIXME: start password clear timer
@@ -1269,7 +1269,7 @@ impl Connection {
         self.flush();
 
         self.randr_query()?;
-        self.redraw_screen(Event::Reset)?;
+        self.redraw_screen()?;
         Ok(())
     }
 }
@@ -1287,7 +1287,7 @@ impl crate::screen::Screen for Connection {
 }
 
 impl Broker for Connection {
-    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>> {
+    fn animator(&self) -> Arc<Mutex<Option<AnimationDriver>>> {
         self.animator.clone()
     }
 
@@ -1310,11 +1310,11 @@ impl Broker for Connection {
         self.pam_return.clone()
     }
 
-    fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>) {
+    fn set_pam(&mut self, pam: std::sync::mpsc::SyncSender<()>) {
         self.pam = Some(pam);
     }
 
-    fn pam(&self) -> Option<std::sync::mpsc::Sender<()>> {
+    fn pam(&self) -> Option<std::sync::mpsc::SyncSender<()>> {
         self.pam.clone()
     }
 
@@ -1335,6 +1335,9 @@ impl Broker for Connection {
             if let Ok(msg) = receiver.recv_timeout(std::time::Duration::new(0, 100000)) {
                 trace!("Call to X11: {:?}", msg);
 
+                lock.replace(receiver);
+                drop(lock);
+
                 match msg {
                     Call::SelectFocusedWindow => {
                         self.focused_window = self.find_focused_window()?;
@@ -1345,7 +1348,7 @@ impl Broker for Connection {
                     Call::GrabPointerAndKeyboard => {
                         if let Err(_) = self.grab_pointer_and_keyboard(1000) {
                             if let Err(_) = self.grab_pointer_and_keyboard(9000) {
-                                self.redraw_screen(Event::Reset)?;
+                                self.redraw_screen()?;
                                 std::thread::sleep(std::time::Duration::new(1, 0));
                                 return Err(anyhow!("Could not grab pointer or keyboard"));
                             }
@@ -1358,15 +1361,15 @@ impl Broker for Connection {
                         self.raise_loop()?;
                     }
                     Call::RedrawScreen => {
-                        self.redraw_screen(Event::Idle)?;
+                        self.redraw_screen()?;
                     }
                     Call::FlushCommands => {
                         self.flush();
                     }
                 }
+            } else {
+                lock.replace(receiver);
             }
-
-            lock.replace(receiver);
         }
 
         trace!("Event loop closed");

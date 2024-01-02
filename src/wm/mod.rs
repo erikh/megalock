@@ -1,6 +1,6 @@
 mod pam;
 
-use crate::{animation::AnimationTypes, utils::get_username, wm::pam::authenticate_password};
+use crate::{animation::AnimationDriver, utils::get_username, wm::pam::authenticate_password};
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, trace};
@@ -23,7 +23,6 @@ pub enum Call {
 #[derive(Debug, Clone)]
 pub enum Event {
     Reset,
-    Idle,
     KeyPressed,
     UnlockAttempted,
     UnlockSuccessful,
@@ -37,11 +36,11 @@ pub enum PamEvent {
 }
 
 pub trait Broker {
-    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>>;
+    fn animator(&self) -> Arc<Mutex<Option<AnimationDriver>>>;
     fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>);
     fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>;
-    fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>);
-    fn pam(&self) -> Option<std::sync::mpsc::Sender<()>>;
+    fn set_pam(&mut self, pam: std::sync::mpsc::SyncSender<()>);
+    fn pam(&self) -> Option<std::sync::mpsc::SyncSender<()>>;
     fn set_events(&mut self, events: std::sync::mpsc::SyncSender<Event>);
     fn events(&self) -> Option<std::sync::mpsc::SyncSender<Event>>;
     fn set_receiver(&mut self, call: Arc<Mutex<Option<std::sync::mpsc::Receiver<Call>>>>);
@@ -50,11 +49,11 @@ pub trait Broker {
 }
 
 pub trait Client {
-    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>>;
+    fn animator(&self) -> Arc<Mutex<Option<AnimationDriver>>>;
     fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>>;
-    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>;
+    fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::SyncSender<PamEvent>>>;
     fn pam(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<()>>>;
-    fn call(&self) -> Option<std::sync::mpsc::Sender<Call>>;
+    fn call(&self) -> Option<std::sync::mpsc::SyncSender<Call>>;
     fn clear_password(&mut self);
     fn password(&self) -> String;
 
