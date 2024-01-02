@@ -1,6 +1,6 @@
 mod pam;
 
-use crate::{utils::get_username, wm::pam::authenticate_password};
+use crate::{animation::AnimationTypes, utils::get_username, wm::pam::authenticate_password};
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, trace};
@@ -35,6 +35,8 @@ pub enum PamEvent {
 }
 
 pub trait Broker {
+    fn set_animator(&mut self, animator: Arc<Mutex<Option<AnimationTypes>>>);
+    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>>;
     fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>);
     fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>;
     fn set_pam(&mut self, pam: std::sync::mpsc::Sender<()>);
@@ -47,6 +49,7 @@ pub trait Broker {
 }
 
 pub trait Client {
+    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>>;
     fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>>;
     fn pam_return(&self) -> Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>;
     fn pam(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<()>>>;

@@ -1,43 +1,24 @@
-#![allow(dead_code)]
 use raqote::*;
-use std::collections::HashMap;
-use std::hash::Hash;
 
-const WIDTH: f32 = 1920.0;
-const HEIGHT: f32 = 1080.0;
-const LINE_WIDTH: f32 = 35.0;
-const PCT_FACTOR: f32 = 100.0;
-
-pub(crate) struct ScreenDrawer<'a, H>
-where
-    H: Hash + Eq + Clone,
-{
+pub(crate) struct ScreenDrawer<'a> {
     width: i32,
     height: i32,
     background: (u8, u8, u8, u8),
     strokes: Vec<(Box<dyn Fn(f32, f32) -> Path>, Source<'a>, StrokeStyle)>,
-    images: HashMap<H, Vec<u32>>,
 }
 
-impl<'a, H> Default for ScreenDrawer<'a, H>
-where
-    H: Hash + Eq + Clone,
-{
+impl<'a> Default for ScreenDrawer<'a> {
     fn default() -> Self {
         Self {
             width: 0,
             height: 0,
             background: (0, 0, 0, 255),
             strokes: Vec::new(),
-            images: HashMap::default(),
         }
     }
 }
 
-impl<'a, H> ScreenDrawer<'a, H>
-where
-    H: Hash + Eq + Clone,
-{
+impl<'a> ScreenDrawer<'a> {
     pub(crate) fn new(width: i32, height: i32) -> Self {
         Self {
             width,
@@ -46,6 +27,7 @@ where
         }
     }
 
+    #[allow(dead_code)] // NOTE: not currently used with black bg's (the default), but should matter later
     pub(crate) fn background(&mut self, r: u8, g: u8, b: u8, a: u8) {
         self.background = (r, g, b, a)
     }
@@ -60,11 +42,7 @@ where
         self.strokes.len() - 1
     }
 
-    pub(crate) fn get_image(&self, tag: H) -> Option<Vec<u32>> {
-        self.images.get(&tag).cloned()
-    }
-
-    pub(crate) fn render_image(&mut self, strokes: Vec<usize>, tag: Option<H>) -> DrawTarget {
+    pub(crate) fn render_image(&mut self, strokes: Vec<usize>) -> Vec<u32> {
         let mut dt = DrawTarget::new(self.width, self.height);
         dt.fill_rect(
             0.0,
@@ -89,20 +67,6 @@ where
             );
         }
 
-        if let Some(tag) = tag {
-            let data = dt.get_data().to_vec();
-            self.images.insert(tag, data);
-        }
-
-        dt
-    }
-
-    pub(crate) fn get_or_render_image(&mut self, strokes: Vec<usize>, tag: H) -> Vec<u32> {
-        if let Some(image) = self.get_image(tag.clone()) {
-            image
-        } else {
-            self.render_image(strokes, Some(tag.clone()));
-            self.get_image(tag).unwrap()
-        }
+        dt.get_data().to_vec()
     }
 }

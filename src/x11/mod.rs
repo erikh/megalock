@@ -3,6 +3,7 @@ pub mod consts;
 pub mod statics;
 
 use crate::{
+    animation::AnimationTypes,
     clear_password,
     wm::{Broker, Call, Event, PamEvent, PASSWORD},
 };
@@ -18,6 +19,7 @@ lazy_static::lazy_static! {
 
 pub struct Client {
     screen_number: i32,
+    animator: Arc<Mutex<Option<AnimationTypes>>>,
     sender: Arc<Mutex<Option<std::sync::mpsc::Sender<Call>>>>,
     pam: Arc<Mutex<std::sync::mpsc::Receiver<()>>>,
     pam_return: Arc<Mutex<std::sync::mpsc::Sender<PamEvent>>>,
@@ -32,6 +34,7 @@ impl Client {
         let (events_s, events_r) = std::sync::mpsc::sync_channel(100);
         let mut s = Self {
             screen_number,
+            animator: Arc::new(Mutex::new(None)),
             sender: Arc::new(Mutex::new(Some(sender))),
             pam: Arc::new(Mutex::new(pam_r)),
             pam_return: Arc::new(Mutex::new(pam_return_s)),
@@ -61,9 +64,11 @@ impl Client {
         events: std::sync::mpsc::SyncSender<Event>,
     ) {
         let screen_number = self.screen_number;
+        let animator = self.animator.clone();
         std::thread::spawn(move || {
             let mut connection =
                 connection::Connection::init(screen_number).expect("Could not init X11");
+            connection.set_animator(animator);
             connection.set_receiver(Arc::new(Mutex::new(Some(receiver))));
             connection.set_pam(pam);
             connection.set_pam_return(Arc::new(Mutex::new(Some(pam_return))));
@@ -74,6 +79,10 @@ impl Client {
 }
 
 impl crate::wm::Client for Client {
+    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>> {
+        self.animator.clone()
+    }
+
     fn events(&self) -> Arc<Mutex<std::sync::mpsc::Receiver<Event>>> {
         self.events.clone()
     }

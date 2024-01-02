@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 use crate::{
+    animation::AnimationTypes,
     bindings::{
         cairo_create, cairo_destroy, cairo_fill, cairo_rectangle, cairo_set_source_rgb,
         cairo_surface_destroy, cairo_surface_t, cairo_t, cairo_xcb_surface_create,
@@ -107,6 +108,7 @@ pub struct Connection {
     pub(crate) pam: Option<std::sync::mpsc::Sender<()>>,
     pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
     pub(crate) events: Option<std::sync::mpsc::SyncSender<Event>>,
+    pub(crate) animator: Arc<Mutex<Option<AnimationTypes>>>,
 }
 
 impl Default for Connection {
@@ -134,6 +136,7 @@ impl Default for Connection {
             pam_return: Arc::new(Mutex::new(None)),
             events: None,
             receiver: Arc::new(Mutex::new(None)),
+            animator: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -153,8 +156,19 @@ impl Connection {
 
         obj.randr_init()?;
         let s: [u32; 1] = [xcb_event_mask_t_XCB_EVENT_MASK_STRUCTURE_NOTIFY];
-        let root = unsafe { (*obj.get_root_screen()).root };
+        let screen = obj.get_root_screen();
+        let root = unsafe { (*screen).root };
         obj.change_window_attributes(root, xcb_cw_t_XCB_CW_EVENT_MASK, &s);
+
+        obj.animator
+            .lock()
+            .unwrap()
+            .replace(AnimationTypes::StarAnimation(
+                unsafe { (*screen).width_in_pixels }.into(),
+                unsafe { (*screen).height_in_pixels }.into(),
+                100,
+                35,
+            ));
         Ok(obj)
     }
 
@@ -1237,6 +1251,14 @@ impl crate::screen::Screen for Connection {
 }
 
 impl Broker for Connection {
+    fn set_animator(&mut self, animator: Arc<Mutex<Option<AnimationTypes>>>) {
+        self.animator = animator.clone();
+    }
+
+    fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>> {
+        self.animator.clone()
+    }
+
     fn set_events(&mut self, events: std::sync::mpsc::SyncSender<crate::wm::Event>) {
         self.events = Some(events);
     }
