@@ -1,10 +1,13 @@
 mod pam;
-pub mod statics;
 
 use crate::{utils::get_username, wm::pam::authenticate_password};
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, trace};
+
+lazy_static::lazy_static! {
+    pub static ref PASSWORD: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+}
 
 #[derive(Debug, Clone)]
 pub enum Call {

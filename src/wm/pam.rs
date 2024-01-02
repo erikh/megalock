@@ -6,7 +6,7 @@ use crate::{
     },
     const_string_ptr,
     utils::{get_display, get_username},
-    wm::statics::PASSWORD,
+    wm::PASSWORD,
 };
 use anyhow::{anyhow, Result};
 use tracing::{debug, trace};

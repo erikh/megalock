@@ -43,6 +43,6 @@ macro_rules! store_atomic {
 #[macro_export]
 macro_rules! clear_password {
     () => {
-        crate::wm::statics::PASSWORD.lock().unwrap().truncate(0)
+        crate::wm::PASSWORD.lock().unwrap().truncate(0)
     };
 }

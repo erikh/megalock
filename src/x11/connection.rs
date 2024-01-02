@@ -65,7 +65,7 @@ use crate::{
     clear_password, const_string_ptr, free, load_atomic, store_atomic, string_from_ptr,
     types::{Modifier, Rect, ScreenQuery},
     utils::get_locale,
-    wm::{statics::PASSWORD, Broker, Call, Event, PamEvent},
+    wm::{Broker, Call, Event, PamEvent, PASSWORD},
     x11::{consts, statics},
 };
 use anyhow::{anyhow, Result};

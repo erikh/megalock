@@ -4,7 +4,7 @@ pub mod statics;
 
 use crate::{
     clear_password,
-    wm::{statics::PASSWORD, Broker, Call, Event, PamEvent},
+    wm::{Broker, Call, Event, PamEvent, PASSWORD},
 };
 use anyhow::Result;
 use std::{
