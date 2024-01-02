@@ -160,15 +160,18 @@ impl Connection {
         let root = unsafe { (*screen).root };
         obj.change_window_attributes(root, xcb_cw_t_XCB_CW_EVENT_MASK, &s);
 
+        let width = unsafe { (*screen).width_in_pixels }.into();
+        let height = unsafe { (*screen).height_in_pixels }.into();
+
         obj.animator
             .lock()
             .unwrap()
-            .replace(AnimationTypes::StarAnimation(
-                unsafe { (*screen).width_in_pixels }.into(),
-                unsafe { (*screen).height_in_pixels }.into(),
-                100,
-                35,
-            ));
+            .replace(AnimationTypes::StarAnimation {
+                width,
+                height,
+                scale: 100,
+                line_width: ((width as f32 / height as f32) * 20.0).trunc() as i32,
+            });
         Ok(obj)
     }
 

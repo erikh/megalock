@@ -4,15 +4,23 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum AnimationTypes {
-    StarAnimation(i32, i32, i32, i32),
+    StarAnimation {
+        width: i32,
+        height: i32,
+        scale: i32,
+        line_width: i32,
+    },
 }
 
 impl From<AnimationTypes> for Box<dyn Animation> {
     fn from(value: AnimationTypes) -> Self {
         match value {
-            AnimationTypes::StarAnimation(width, height, scale, line_width) => {
-                Box::new(StarAnimation::new(width, height, scale, line_width))
-            }
+            AnimationTypes::StarAnimation {
+                width,
+                height,
+                scale,
+                line_width,
+            } => Box::new(StarAnimation::new(width, height, scale, line_width)),
         }
     }
 }
@@ -30,6 +38,8 @@ pub(crate) enum StarPosition {
     Top,
     TopRight,
     Center,
+    X,
+    Plus,
     Full,
 }
 
@@ -129,6 +139,8 @@ impl StarDrawing {
         );
 
         map.insert(StarPosition::TopRight, sd.render_image(vec![3]));
+        map.insert(StarPosition::X, sd.render_image(vec![2, 3]));
+        map.insert(StarPosition::Plus, sd.render_image(vec![0, 1]));
         map.insert(StarPosition::Full, sd.render_image(vec![0, 1, 2, 3]));
 
         Self(map)
@@ -147,6 +159,8 @@ impl Animation for StarAnimation {
                         StarPosition::Center,
                         StarPosition::TopLeft,
                         StarPosition::TopRight,
+                        StarPosition::Plus,
+                        StarPosition::X,
                     ][rand::random::<usize>() % 4],
                 )
                 .unwrap()
