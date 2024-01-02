@@ -67,8 +67,7 @@ impl Client {
         let animator = self.animator.clone();
         std::thread::spawn(move || {
             let mut connection =
-                connection::Connection::init(screen_number).expect("Could not init X11");
-            connection.set_animator(animator);
+                connection::Connection::init(screen_number, animator).expect("Could not init X11");
             connection.set_receiver(Arc::new(Mutex::new(Some(receiver))));
             connection.set_pam(pam);
             connection.set_pam_return(Arc::new(Mutex::new(Some(pam_return))));

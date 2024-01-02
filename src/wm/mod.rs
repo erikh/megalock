@@ -22,6 +22,8 @@ pub enum Call {
 
 #[derive(Debug, Clone)]
 pub enum Event {
+    Reset,
+    Idle,
     KeyPressed,
     UnlockAttempted,
     UnlockSuccessful,
@@ -35,7 +37,6 @@ pub enum PamEvent {
 }
 
 pub trait Broker {
-    fn set_animator(&mut self, animator: Arc<Mutex<Option<AnimationTypes>>>);
     fn animator(&self) -> Arc<Mutex<Option<AnimationTypes>>>;
     fn set_pam_return(&mut self, pam: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>);
     fn pam_return(&self) -> Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>;

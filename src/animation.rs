@@ -12,6 +12,12 @@ pub enum AnimationTypes {
     },
 }
 
+impl From<&AnimationTypes> for Box<dyn Animation> {
+    fn from(value: &AnimationTypes) -> Self {
+        value.clone().into()
+    }
+}
+
 impl From<AnimationTypes> for Box<dyn Animation> {
     fn from(value: AnimationTypes) -> Self {
         match value {
@@ -26,7 +32,7 @@ impl From<AnimationTypes> for Box<dyn Animation> {
 }
 
 pub trait Animation {
-    fn animate(&mut self, event: crate::wm::Event) -> &[u32];
+    fn animate(&mut self, event: Event) -> &[u32];
     fn last_frame(&self) -> &[u32];
 }
 
@@ -34,6 +40,7 @@ pub(crate) type Color = (u8, u8, u8, u8);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum StarPosition {
+    Blank,
     TopLeft,
     Top,
     TopRight,
@@ -56,6 +63,7 @@ const WHITE: Color = (255, 255, 255, 255);
 
 impl StarAnimation {
     pub(crate) fn new(width: i32, height: i32, scale: i32, line_width: i32) -> Self {
+        // FIXME: this is really wasteful for a lot of the stuff that needs to be rendered.
         Self {
             red: StarDrawing::new(width, height, RED, scale, line_width),
             green: StarDrawing::new(width, height, GREEN, scale, line_width),
@@ -142,6 +150,7 @@ impl StarDrawing {
         map.insert(StarPosition::X, sd.render_image(vec![2, 3]));
         map.insert(StarPosition::Plus, sd.render_image(vec![0, 1]));
         map.insert(StarPosition::Full, sd.render_image(vec![0, 1, 2, 3]));
+        map.insert(StarPosition::Blank, sd.render_image(vec![]));
 
         Self(map)
     }
@@ -150,6 +159,8 @@ impl StarDrawing {
 impl Animation for StarAnimation {
     fn animate(&mut self, event: Event) -> &[u32] {
         self.last_frame = match event {
+            Event::Idle => self.last_frame.clone(), // FIXME: silly
+            Event::Reset => self.white.0.get(&StarPosition::Blank).unwrap().clone(),
             Event::KeyPressed => self
                 .white
                 .0
