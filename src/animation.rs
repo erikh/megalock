@@ -172,7 +172,7 @@ impl Animation for StarAnimation {
                         StarPosition::TopRight,
                         StarPosition::Plus,
                         StarPosition::X,
-                    ][rand::random::<usize>() % 4],
+                    ][rand::random::<usize>() % 6],
                 )
                 .unwrap()
                 .clone(),
