@@ -886,11 +886,7 @@ impl Connection {
     }
 
     pub fn redraw_screen(&mut self) -> Result<()> {
-        trace!(
-            "redraw_screen(unlock_state = {:?}, auth_state = {:?})",
-            UNLOCK_STATE.lock().unwrap().clone().unwrap(),
-            AUTH_STATE.lock().unwrap().clone().unwrap(),
-        );
+        trace!("redraw_screen");
 
         if self.modifier_set.is_some() {
             self.modifier_set = None;
@@ -1165,15 +1161,8 @@ impl Connection {
                     return;
                 }
 
-                replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
-
-                self.redraw_screen().expect("Could not redraw screen");
-
-                replace_option!(UNLOCK_STATE, UnlockState::Started);
-
                 self.events().unwrap().send(Event::UnlockAttempted).unwrap();
-                self.redraw_screen(Event::Idle)
-                    .expect("Could not redraw screen");
+                self.redraw_screen().expect("Could not redraw screen");
                 self.pam()
                     .unwrap()
                     .send(())
@@ -1216,11 +1205,6 @@ impl Connection {
                 let mut lock = PASSWORD.lock().unwrap();
                 // FIXME: start login timer
                 lock.pop();
-
-                replace_option!(UNLOCK_STATE, UnlockState::BackspaceActive);
-
-                self.redraw_screen().expect("Could not redraw screen");
-                replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
                 composed = false; // lets it fall through to the trace statement
             }
             _ => {}
@@ -1232,10 +1216,6 @@ impl Connection {
                     .unwrap()
                     .as_str(),
             );
-
-            replace_option!(UNLOCK_STATE, UnlockState::KeyActive);
-            self.redraw_screen().expect("Couldn't redraw screen");
-            replace_option!(UNLOCK_STATE, UnlockState::KeyPressed);
         }
 
         trace!("Key pressed: {}", ksym);
