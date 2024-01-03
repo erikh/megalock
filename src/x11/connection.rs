@@ -305,7 +305,7 @@ impl Connection {
             return Ok(self.default_dpi());
         }
 
-        let mut resource: *mut i8 = std::ptr::null_mut();
+        let mut resource = std::ptr::null_mut();
 
         unsafe {
             xcb_xrm_resource_get_string(
