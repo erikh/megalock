@@ -4,27 +4,30 @@ use tracing::trace;
 
 #[derive(Debug, Clone)]
 pub struct AnimationDriver {
-    typ: AnimationType,
-    last_frame: Vec<u32>,
+    typ: Vec<AnimationType>,
+    last_frame: Vec<Vec<u32>>,
 }
 
 impl AnimationDriver {
-    pub fn new(typ: AnimationType) -> Self {
+    pub fn new(typ: Vec<AnimationType>) -> Self {
         Self {
             typ,
-            last_frame: vec![0],
+            last_frame: Vec::new(),
         }
     }
 
     pub fn animate(&mut self, event: Event) {
-        let mut animator: Box<dyn Animation> = self.typ.clone().into();
-        animator.animate(event);
+        let mut v = Vec::new();
+        for typ in &self.typ {
+            let mut animator: Box<dyn Animation> = typ.into();
+            v.push(animator.animate(event.clone()));
+        }
 
-        self.last_frame = self.last_frame().to_vec();
+        self.last_frame = v
     }
 
-    pub fn last_frame(&self) -> &[u32] {
-        self.last_frame.as_slice()
+    pub fn last_frame(&self) -> Vec<Vec<u32>> {
+        self.last_frame.clone()
     }
 }
 

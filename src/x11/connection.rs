@@ -9,18 +9,17 @@ use crate::{
         xcb_atom_enum_t_XCB_ATOM_CARDINAL, xcb_atom_enum_t_XCB_ATOM_STRING,
         xcb_atom_enum_t_XCB_ATOM_WINDOW, xcb_atom_enum_t_XCB_ATOM_WM_CLASS,
         xcb_atom_enum_t_XCB_ATOM_WM_NAME, xcb_atom_t, xcb_aux_sync, xcb_change_property,
-        xcb_change_window_attributes, xcb_clear_area, xcb_config_window_t_XCB_CONFIG_WINDOW_HEIGHT,
+        xcb_change_window_attributes, xcb_config_window_t_XCB_CONFIG_WINDOW_HEIGHT,
         xcb_config_window_t_XCB_CONFIG_WINDOW_STACK_MODE,
         xcb_config_window_t_XCB_CONFIG_WINDOW_WIDTH, xcb_configure_window, xcb_connect,
-        xcb_connection_t, xcb_create_cursor, xcb_create_gc, xcb_create_pixmap,
-        xcb_create_pixmap_from_bitmap_data, xcb_create_window, xcb_cursor_t, xcb_cw_t,
-        xcb_cw_t_XCB_CW_BACK_PIXEL, xcb_cw_t_XCB_CW_BACK_PIXMAP, xcb_cw_t_XCB_CW_EVENT_MASK,
-        xcb_cw_t_XCB_CW_OVERRIDE_REDIRECT, xcb_depth_iterator_t, xcb_depth_next,
-        xcb_depth_visuals_iterator, xcb_destroy_notify_event_t,
+        xcb_connection_t, xcb_create_cursor, xcb_create_gc, xcb_create_pixmap_from_bitmap_data,
+        xcb_create_window, xcb_cursor_t, xcb_cw_t, xcb_cw_t_XCB_CW_BACK_PIXEL,
+        xcb_cw_t_XCB_CW_EVENT_MASK, xcb_cw_t_XCB_CW_OVERRIDE_REDIRECT, xcb_depth_iterator_t,
+        xcb_depth_next, xcb_depth_visuals_iterator, xcb_destroy_notify_event_t,
         xcb_event_mask_t_XCB_EVENT_MASK_EXPOSURE, xcb_event_mask_t_XCB_EVENT_MASK_KEY_PRESS,
         xcb_event_mask_t_XCB_EVENT_MASK_KEY_RELEASE,
         xcb_event_mask_t_XCB_EVENT_MASK_STRUCTURE_NOTIFY,
-        xcb_event_mask_t_XCB_EVENT_MASK_VISIBILITY_CHANGE, xcb_extension_t, xcb_flush, xcb_free_gc,
+        xcb_event_mask_t_XCB_EVENT_MASK_VISIBILITY_CHANGE, xcb_extension_t, xcb_flush,
         xcb_free_pixmap, xcb_gc_t_XCB_GC_FOREGROUND, xcb_gcontext_t, xcb_generate_id,
         xcb_generic_error_t, xcb_get_extension_data, xcb_get_geometry, xcb_get_geometry_reply,
         xcb_get_property_reply, xcb_get_property_reply_t,
@@ -28,9 +27,9 @@ use crate::{
         xcb_get_property_value, xcb_get_property_value_length, xcb_get_setup, xcb_grab_keyboard,
         xcb_grab_keyboard_cookie_t, xcb_grab_keyboard_reply, xcb_grab_mode_t_XCB_GRAB_MODE_ASYNC,
         xcb_grab_pointer, xcb_grab_pointer_cookie_t, xcb_grab_pointer_reply,
-        xcb_grab_status_t_XCB_GRAB_STATUS_SUCCESS, xcb_intern_atom, xcb_intern_atom_reply,
-        xcb_intern_atom_reply_t, xcb_key_press_event_t, xcb_map_window, xcb_pixmap_t,
-        xcb_poly_fill_rectangle, xcb_prop_mode_t_XCB_PROP_MODE_REPLACE,
+        xcb_grab_status_t_XCB_GRAB_STATUS_SUCCESS, xcb_image_format_t_XCB_IMAGE_FORMAT_Z_PIXMAP,
+        xcb_intern_atom, xcb_intern_atom_reply, xcb_intern_atom_reply_t, xcb_key_press_event_t,
+        xcb_map_window, xcb_pixmap_t, xcb_prop_mode_t_XCB_PROP_MODE_REPLACE, xcb_put_image,
         xcb_query_extension_reply_t, xcb_randr_get_monitors,
         xcb_randr_get_monitors_monitors_iterator, xcb_randr_get_monitors_monitors_length,
         xcb_randr_get_monitors_reply, xcb_randr_get_monitors_reply_t, xcb_randr_id,
@@ -39,8 +38,8 @@ use crate::{
         xcb_randr_notify_mask_t_XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE,
         xcb_randr_notify_mask_t_XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY,
         xcb_randr_notify_mask_t_XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE, xcb_randr_select_input,
-        xcb_rectangle_t, xcb_screen_allowed_depths_iterator, xcb_screen_t,
-        xcb_setup_roots_iterator, xcb_stack_mode_t_XCB_STACK_MODE_ABOVE, xcb_unmap_notify_event_t,
+        xcb_screen_allowed_depths_iterator, xcb_screen_t, xcb_setup_roots_iterator,
+        xcb_stack_mode_t_XCB_STACK_MODE_ABOVE, xcb_unmap_notify_event_t,
         xcb_visibility_notify_event_t, xcb_visibility_t_XCB_VISIBILITY_UNOBSCURED,
         xcb_visualtype_iterator_t, xcb_visualtype_next, xcb_visualtype_t, xcb_wait_for_event,
         xcb_window_class_t_XCB_WINDOW_CLASS_COPY_FROM_PARENT,
@@ -109,6 +108,7 @@ pub struct Connection {
     pub(crate) pam_return: Arc<Mutex<Option<std::sync::mpsc::Receiver<PamEvent>>>>,
     pub(crate) events: Option<std::sync::mpsc::SyncSender<Event>>,
     pub(crate) animator: Arc<Mutex<Option<AnimationDriver>>>,
+    pub(crate) monitors: Option<ScreenQuery>,
 }
 
 impl Default for Connection {
@@ -137,6 +137,7 @@ impl Default for Connection {
             events: None,
             receiver: Arc::new(Mutex::new(None)),
             animator: Arc::new(Mutex::new(None)),
+            monitors: None,
         }
     }
 }
@@ -155,24 +156,6 @@ impl Connection {
         debug!("dpi: {}", dpi);
 
         obj.randr_init()?;
-        let s: [u32; 1] = [xcb_event_mask_t_XCB_EVENT_MASK_STRUCTURE_NOTIFY];
-        let screen = obj.get_root_screen();
-        let root = unsafe { (*screen).root };
-        obj.change_window_attributes(root, xcb_cw_t_XCB_CW_EVENT_MASK, &s);
-
-        let width = unsafe { (*screen).width_in_pixels }.into();
-        let height = unsafe { (*screen).height_in_pixels }.into();
-
-        debug!("Screen: width: {}, height: {}", width, height);
-
-        let mut lock = obj.animator.lock().unwrap();
-        lock.replace(AnimationDriver::new(AnimationType::StarAnimation {
-            width,
-            height,
-            scale: 100,
-            line_width: ((width as f32 / height as f32) * 20.0).trunc() as i32,
-        }));
-        drop(lock);
 
         Ok(obj)
     }
@@ -399,7 +382,7 @@ impl Connection {
         Ok(())
     }
 
-    pub fn randr_query(&mut self) -> Result<ScreenQuery> {
+    pub fn randr_query(&mut self) -> Result<()> {
         let screen = self.get_root_screen();
         let root = unsafe { (*screen).root };
         let mut err: *mut xcb_generic_error_t = std::ptr::null_mut();
@@ -441,30 +424,34 @@ impl Connection {
 
         free!(monitors);
 
-        Ok(ScreenQuery {
+        self.monitors = Some(ScreenQuery {
             resolutions,
             screens,
-        })
+        });
+
+        let mut v = Vec::new();
+
+        for monitor in &self.monitors.clone().unwrap().resolutions {
+            v.push(AnimationType::StarAnimation {
+                width: monitor.width.try_into().unwrap(),
+                height: monitor.height.try_into().unwrap(),
+                scale: 100,
+                line_width: ((monitor.width as f32 / monitor.height as f32) * 20.0).trunc() as i32,
+            });
+        }
+
+        let mut lock = self.animator.lock().unwrap();
+        lock.replace(AnimationDriver::new(v));
+        drop(lock);
+
+        Ok(())
     }
 
     pub fn change_window_attributes(&mut self, win: xcb_window_t, cw: xcb_cw_t, controls: &[u32]) {
         unsafe { xcb_change_window_attributes(self.xcb, win, cw, controls.as_ptr().cast()) };
     }
 
-    pub fn create_bg_pixmap(&mut self, resolution: Rect) -> xcb_pixmap_t {
-        let bg_pixmap: xcb_pixmap_t = unsafe { xcb_generate_id(self.xcb) };
-        let screen = self.get_root_screen();
-        unsafe {
-            xcb_create_pixmap(
-                self.xcb,
-                (*screen).root_depth,
-                bg_pixmap,
-                (*screen).root,
-                resolution.width,
-                resolution.height,
-            )
-        };
-
+    pub fn paint(&mut self) {
         let gc: xcb_gcontext_t = unsafe { xcb_generate_id(self.xcb) };
         let animator = self.animator();
         trace!("bg pixmap lock");
@@ -472,7 +459,7 @@ impl Connection {
         trace!("got bg pixmap lock");
         let inner = lock.take().unwrap();
         let values = inner.last_frame();
-        lock.replace(inner.clone());
+        lock.replace(inner);
         drop(lock);
         trace!("bg pixmap unlock");
 
@@ -480,25 +467,37 @@ impl Connection {
             xcb_create_gc(
                 self.xcb,
                 gc,
-                bg_pixmap,
+                self.my_window.unwrap(),
                 xcb_gc_t_XCB_GC_FOREGROUND,
                 values.as_ptr().cast(),
             )
         };
 
-        let rect = xcb_rectangle_t {
-            width: resolution.width,
-            height: resolution.height,
-            x: 0,
-            y: 0,
-        };
+        for (x, value) in values.iter().enumerate() {
+            let monitor = self.monitors.clone().unwrap().resolutions[x].clone();
 
-        unsafe {
-            xcb_poly_fill_rectangle(self.xcb, bg_pixmap, gc, 1, &rect);
-            xcb_free_gc(self.xcb, gc);
-        };
+            trace!("Painting screen for monitor {}: {:?}", x, monitor);
+            trace!("Rendering value with length {}", value.len());
 
-        bg_pixmap
+            unsafe {
+                xcb_put_image(
+                    self.xcb,
+                    xcb_image_format_t_XCB_IMAGE_FORMAT_Z_PIXMAP
+                        .try_into()
+                        .unwrap(),
+                    self.my_window.unwrap(),
+                    gc,
+                    monitor.width,
+                    monitor.height,
+                    monitor.x,
+                    monitor.y,
+                    0,
+                    32,
+                    value.len().try_into().unwrap(),
+                    value.as_ptr().cast(),
+                )
+            };
+        }
     }
 
     fn get_root_visual_type(&mut self) -> Option<*mut xcb_visualtype_t> {
@@ -886,6 +885,8 @@ impl Connection {
     }
 
     pub fn redraw_screen(&mut self) -> Result<()> {
+        self.randr_query()?;
+
         trace!("redraw_screen");
 
         if self.modifier_set.is_some() {
@@ -978,31 +979,7 @@ impl Connection {
             }
         }
 
-        let screen = self.get_root_screen();
-
-        let width = unsafe { (*screen).width_in_pixels };
-        let height = unsafe { (*screen).height_in_pixels };
-        let rect = Rect {
-            width,
-            height,
-            x: 0,
-            y: 0,
-        };
-
-        let bg_pixmap = self.create_bg_pixmap(rect.clone());
-
-        self.draw_image(bg_pixmap, rect.clone())?;
-        self.change_window_attributes(
-            self.my_window.unwrap(),
-            xcb_cw_t_XCB_CW_BACK_PIXMAP,
-            &[bg_pixmap],
-        );
-
-        unsafe {
-            xcb_clear_area(self.xcb, 0, self.my_window.unwrap(), 0, 0, width, height);
-            xcb_free_pixmap(self.xcb, bg_pixmap);
-        };
-
+        self.paint();
         self.flush();
 
         Ok(())
